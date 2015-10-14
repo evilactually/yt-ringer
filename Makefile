@@ -1,7 +1,8 @@
 
 CFLAGS=$(shell pkg-config --cflags gio-2.0) \
        $(shell pkg-config --cflags json-glib-1.0) \
-			 $(shell curl-config --cflags)
+			 $(shell curl-config --cflags) \
+			 -std=c99
 
 LIBS=$(shell pkg-config --libs gio-2.0) \
      $(shell pkg-config --libs json-glib-1.0) \
@@ -20,3 +21,4 @@ tests:
 		gcc -D"CHANNEL_TESTS" ${CFLAGS} channel.c string-builder.c curl-utils.c -o channel-test ${LIBS}
 		gcc -D"STRING_BUILDER_TESTS" ${CFLAGS} string-builder.c string-utils.c -o string-builder-test ${LIBS}
 		gcc -D"CURL_UTILS_TESTS" ${CFLAGS} curl-utils.c string-utils.c string-builder.c -o curl-utils-test ${LIBS}
+		gcc -D"STRING_UTILS_TESTS" ${CFLAGS} string-utils.c string-builder.c -o string-utils-test ${LIBS}
