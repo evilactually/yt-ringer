@@ -2,13 +2,12 @@
 #include "string-utils.h"
 #include "string-builder.h"
 #include <stdarg.h>
+#include <stdio.h>
 #include <glib.h>
 
 gint u_str_match(const gchar* str1, const gchar* str2) {
   return g_strcmp0(str1, str2) == 0;
 }
-
-#include <stdio.h>
 
 /* Helper data structure for string construction in u_str_substitute_vars function */
 
@@ -64,26 +63,38 @@ const gchar* merge_build_buffers(string_build_buffers *b) {
 }
 
 /* end */
-// TODO: overrise equality function to work with fixed sized strings
-#define MAX_VARIABLE_SIZE 8
-#define ALLOW_EMPTY_VARIABLES 1
 
-enum {
+// TODO: override equality function to work with fixed sized strings
+#define MAX_VARIABLE_SIZE 8
+
+enum SCANNER_STATES {
   STRING_OR_SIGIL,
   OPEN_CURL_OR_STRING,
   SPACE_OR_VARIABLE,
   VARIABLE_OR_SPACE_OR_CLOSE_CURL,
   SPACE_OR_CLOSE_CURL,
-  ERROR
+  ERROR, // special error marker
+  ERROR_VARIABLE_TOO_LONG,
+  ERROR_UNEXPECTED_INPUT,
+  ERROR_UNEXPECTED_END
 };
 
-enum {
-  SPACE,
-  ALPHANUMERAL,
-  CLOSE_CURL
-};
+const gchar* format_scanning_error_location(const gchar* template, gsize position) {
+  UStringBuilder *builder = u_string_builder_new();
+  u_string_builder_append(builder, template);
+  u_string_builder_append(builder, "\n");
+  gchar* space_fill = g_strnfill(position, ' ');
+  u_string_builder_append(builder, space_fill);
+  g_free(space_fill);
+  u_string_builder_append(builder, "^");
+  const gchar* result = u_string_builder_build(builder);
+  g_object_unref(builder);
+  return result;
+}
 
 const gchar* u_str_substitute_vars(const gchar* template, ...) {
+
+  /* Populate bindings hash */
   GHashTable* bindings = g_hash_table_new(g_str_hash, g_str_equal);
   va_list ap;
   va_start(ap,template);
@@ -95,20 +106,21 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
   }
   va_end(ap);
 
+  /* Perform template scanning and interpolation */
   string_build_buffers result_buffers;
+  init_build_buffers(&result_buffers);
   gchar variable_buffer[MAX_VARIABLE_SIZE+1];
   gint variable_size;
   gint state;
   gint expected;
   const gchar* template_cursor = template;
 
-  init_build_buffers(&result_buffers);
-
-  // transition to STRING state
+  // Transition to STRING_OR_SIGIL state
   buffer_start(&result_buffers, template_cursor);
   state=STRING_OR_SIGIL;
 
-  while(*template_cursor && state != ERROR) {
+  while(*template_cursor && state < ERROR) {
+    //printf("%c ", *template_cursor);
     switch (state) {
       case STRING_OR_SIGIL:               // vvvv
         if(*template_cursor == '$') {     // xyz${ VAR }
@@ -140,16 +152,14 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
           state = VARIABLE_OR_SPACE_OR_CLOSE_CURL;
           template_cursor++;
         } else {
-          state = ERROR;
-          expected = SPACE | ALPHANUMERAL;
+          state = ERROR_UNEXPECTED_INPUT;
         }
         //printf("%s\n", "SPACE_OR_VARIABLE");
         break;                                 //   v       v        v
       case VARIABLE_OR_SPACE_OR_CLOSE_CURL:    // VAR or VAR } or VAR}
         if (g_ascii_isalnum(*template_cursor)) {
           if(variable_size >= MAX_VARIABLE_SIZE) {
-            state = ERROR;
-            expected = SPACE | CLOSE_CURL;
+            state = ERROR_VARIABLE_TOO_LONG;
           } else {
             variable_buffer[variable_size++] = *template_cursor;
             template_cursor++;
@@ -157,7 +167,6 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
         } else if (*template_cursor == ' ' || *template_cursor == '}') {
           variable_buffer[variable_size] = '\0';
           const gchar* variable_value = g_hash_table_lookup(bindings, variable_buffer);
-          g_assert(variable_value || ALLOW_EMPTY_VARIABLES);
           if(variable_value) {
             buffer_start(&result_buffers, variable_value);
             buffer_advance_untill_null(&result_buffers);
@@ -171,9 +180,9 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
           }
           template_cursor++;
         } else {
-          state = ERROR;
-          expected = SPACE | CLOSE_CURL | ALPHANUMERAL;
+          state = ERROR_UNEXPECTED_INPUT;
         }
+        g_assert(template != template_cursor);
         //printf("%s\n", "VARIABLE_OR_SPACE_OR_CLOSE_CURL");
         break;                                  //     vvvv
       case SPACE_OR_CLOSE_CURL:                 // VAR    }
@@ -184,52 +193,57 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
           buffer_start(&result_buffers, template_cursor + 1);
           template_cursor++;
         } else {
-          state = ERROR;
-          expected = SPACE | CLOSE_CURL;
+          state = ERROR_UNEXPECTED_INPUT;
         }
         //printf("%s\n", "SPACE_OR_CLOSE_CURL");
         break;
     }
   }
 
-  if(state == ERROR) {
-    fprintf(stderr, "%s\n", "ERROR");
-    g_assert(state != ERROR);
+  // STRING_OR_SIGIL & OPEN_CURL_OR_STRING are the only accepted final non-error states
+  if(state < ERROR) {
+    state = state != STRING_OR_SIGIL && state != OPEN_CURL_OR_STRING ? ERROR_UNEXPECTED_END : state;
   }
 
-  buffer_finish(&result_buffers);
-  const gchar* result = merge_build_buffers(&result_buffers);
-  dispose_build_buffers(&result_buffers);
-  return result;
+  // finish consuming $
+  if(state == OPEN_CURL_OR_STRING) buffer_advance(&result_buffers);
+
+  if(state >= ERROR) {
+    dispose_build_buffers(&result_buffers);
+    fprintf(stderr, "%s\n", format_scanning_error_location(template, template_cursor - template));
+    g_assert(state != ERROR_VARIABLE_TOO_LONG);
+    g_assert(state != ERROR_UNEXPECTED_INPUT);
+    g_assert(state != ERROR_UNEXPECTED_END);
+    g_assert(state < ERROR);
+  } else {
+    buffer_finish(&result_buffers);
+    const gchar* result = merge_build_buffers(&result_buffers);
+    dispose_build_buffers(&result_buffers);
+    return result;
+  }
 }
 
 #ifdef STRING_UTILS_TESTS
-
-#include <stdio.h>
 
 int main(int argc, char const *argv[]) {
   const gchar* SOURCE_STRING_A = "'Twas brillig, and the slithy toves; Did gyre and gimble in the wabe;";
   string_build_buffers b;
   init_build_buffers(&b);
 
-  // brillig
   buffer_start(&b, SOURCE_STRING_A + 6);
   buffer_advance_n(&b,7);
   buffer_finish(&b);
   g_assert(u_str_match(merge_build_buffers(&b), "brillig"));
 
-  // space
   buffer_start(&b, " ");
   buffer_advance(&b);
   buffer_finish(&b);
 
-  // gimble
   buffer_start(&b, SOURCE_STRING_A + 50);
   buffer_advance_n(&b,6);
   buffer_finish(&b);
   g_assert(u_str_match(merge_build_buffers(&b), "brillig gimble"));
 
-  // jabberwock
   buffer_start(&b, "; Beware the Jabberwock");
   buffer_advance_untill_null(&b);
   buffer_finish(&b);
@@ -237,13 +251,31 @@ int main(int argc, char const *argv[]) {
 
   dispose_build_buffers(&b);
 
-  const gchar* str = u_str_substitute_vars("Twas ${B} and the slithy ${T}.....", "B", "brillig", "T", "toves", NULL);
-  printf("%s\n", str);
-  printf("%s\n", u_str_substitute_vars("Beware the ${MONSTER}, who lurks in ${PLACE}..", "MONSTER", "Jabberwock", "PLACE", "Nimberland", NULL));
-  printf("%s\n", u_str_substitute_vars("Beware the ${MONSTER}, who lurks in ${PLACE}", "MONSTER", "Jabberwock", "PLACE", "Nimberland", NULL));
-  printf("%s\n", u_str_substitute_vars("Beware the ${M}, who lurks in ${PLACE}", "MONSTER", "Jabberwock", "PLACE", "Nimberland", NULL));
-  printf("%s\n", u_str_substitute_vars("Beware the ${}, who lurks in ${PLACE}", "MONSTER", "Jabberwock", "PLACE", "Nimberland", NULL));
-  //u_str_substitute_vars("'Twas '${B} and the slithy ${T}", NULL);
+  g_assert(u_str_substitute_vars("", "B", "brillig", "T", "toves", NULL)[1] == '\0');
+  g_assert(u_str_substitute_vars(" ", "B", "brillig", "T", "toves", NULL)[2] == '\0');
+  g_assert_cmpstr(u_str_substitute_vars(" ", "B", "brillig", "T", "toves", NULL), ==, " ");
+  g_assert_cmpstr(u_str_substitute_vars("${B}", "B", "brillig", NULL), ==, "brillig");
+  g_assert_cmpstr(u_str_substitute_vars("${THING}", "THING", "brillig", NULL), ==, "brillig");
+  g_assert_cmpstr(u_str_substitute_vars("${   THING   }", "THING", "brillig", NULL), ==, "brillig");
+  g_assert_cmpstr(u_str_substitute_vars(" ${B} ", "B", "brillig", NULL), ==, " brillig ");
+  g_assert_cmpstr(u_str_substitute_vars("${thing}-${THING}-${thing}-${THING}", "thing", "gyre", "THING", "gimble", NULL), ==, "gyre-gimble-gyre-gimble");
+  g_assert_cmpstr(u_str_substitute_vars("${B}", "A", "brillig", NULL), ==, "");
+  g_assert_cmpstr(u_str_substitute_vars("${A}${B}${C}", "A", "brillig", "C", "gimble", NULL), ==, "brilliggimble");
+  g_assert_cmpstr(u_str_substitute_vars("$ {A}", "A", "brillig", NULL), ==, "$ {A}");
+  g_assert_cmpstr(u_str_substitute_vars("${A}", "A", "brillig", NULL), ==, "brillig");
+  g_assert_cmpstr(u_str_substitute_vars("{}", NULL), ==, "{}");
+  g_assert_cmpstr(u_str_substitute_vars("${A}\n${B}\n${C}", "A", "brillig", "B", "gyre", "C", "gimble", NULL), ==, "brillig\ngyre\ngimble");
+  g_assert_cmpstr(u_str_substitute_vars("$", NULL), ==, "$");
+  g_assert_cmpstr(u_str_substitute_vars("$$", NULL), ==, "$$");
+  g_assert_cmpstr(u_str_substitute_vars("$$$", NULL), ==, "$$$");
+  g_assert_cmpstr(u_str_substitute_vars("$$$$", NULL), ==, "$$$$");
+
+  // These should blow up
+  //u_str_substitute_vars("Beware the ${MMMMMMMMMMMMMMMMMMMMMMMONSTER}!!!", "MMMMMMMMMMMMMMMMMMMMMMMONSTER", "Jabberwock", NULL);
+  //u_str_substitute_vars("${}", NULL);
+  //u_str_substitute_vars("${A!}", NULL);
+  //u_str_substitute_vars("${!A}", NULL);
+  //u_str_substitute_vars("${A", NULL);
 
   return 0;
 }
