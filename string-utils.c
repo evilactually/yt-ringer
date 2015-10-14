@@ -182,7 +182,6 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
         } else {
           state = ERROR_UNEXPECTED_INPUT;
         }
-        g_assert(template != template_cursor);
         //printf("%s\n", "VARIABLE_OR_SPACE_OR_CLOSE_CURL");
         break;                                  //     vvvv
       case SPACE_OR_CLOSE_CURL:                 // VAR    }
