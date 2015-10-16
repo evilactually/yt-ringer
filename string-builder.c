@@ -9,7 +9,7 @@ struct _UStringBuilder
 };
 
 struct string_chunk {
-  const gchar* string;
+  gchar* string;
   gsize length;
 };
 
@@ -17,9 +17,15 @@ typedef struct string_chunk string_chunk;
 
 G_DEFINE_TYPE (UStringBuilder, u_string_builder, G_TYPE_OBJECT)
 
+void free_chunk(string_chunk *data, gchar **user_data) {
+  g_free(data->string);
+  g_free(data);
+}
+#include <stdio.h>
 void u_string_builder_finilize (GObject* gobject){
   UStringBuilder* instance = U_STRING_BUILDER(gobject);
-  g_queue_free(instance->queue);
+  g_queue_foreach (instance->queue, (GFunc)free_chunk, NULL);
+  g_queue_free(instance->queue); // TODO: release the strings
   G_OBJECT_CLASS (u_string_builder_parent_class)->finalize (gobject);
 }
 
@@ -49,8 +55,9 @@ void u_string_builder_append_n (UStringBuilder *self, const gchar* str, gsize n)
 
 void u_string_builder_append (UStringBuilder *self, const gchar* str) {
    if(!str) return;
-   string_chunk *chunk = g_new(string_chunk, 1);
    gsize n = strlen(str);
+   if (!n) return;
+   string_chunk *chunk = g_new(string_chunk, 1);
    chunk->string = g_memdup(str, n*sizeof(gchar));
    chunk->length = n;
    g_queue_push_tail(self->queue, chunk);
@@ -68,8 +75,9 @@ void u_string_builder_prepend_n (UStringBuilder *self, const gchar* str, gsize n
 
 void u_string_builder_prepend (UStringBuilder *self, const gchar* str) {
   if(!str) return;
-  string_chunk *chunk = g_new(string_chunk, 1);
   gsize n = strlen(str);
+  if (!n) return;
+  string_chunk *chunk = g_new(string_chunk, 1);
   chunk->string = g_memdup(str, n*sizeof(gchar));
   chunk->length = n;
   g_queue_push_head(self->queue, chunk);
@@ -85,7 +93,7 @@ void chunk_process(string_chunk *data, gchar **user_data) {
   *user_data += data->length;
 }
 
-const gchar* u_string_builder_build (UStringBuilder *self) {
+gchar* u_string_builder_build (UStringBuilder *self) {
   gchar *result, *cursor;
   result = cursor = (gchar*)g_malloc(sizeof(gchar)*(self->length + 1)); // extra char for \0
   g_queue_foreach (self->queue, (GFunc)chunk_process, &cursor);
@@ -104,30 +112,48 @@ int main(int argc, char const *argv[]) {
   u_string_builder_append(sb,"<body string>");
   u_string_builder_append(sb,"<footer string>");
   u_string_builder_prepend(sb,"<super header string>");
-  g_assert(u_str_match(u_string_builder_build(sb), "<super header string><header string><body string><footer string>"));
-  printf("%s\n", u_string_builder_build(sb));
+  gchar* str = u_string_builder_build(sb);
+  g_assert(u_str_match(str, "<super header string><header string><body string><footer string>"));
+  printf("%s\n", str);
   g_object_unref(sb);
+  g_free(str);
 
   // no calls to append/prepend, builds empty string
   sb = u_string_builder_new();
-  g_assert(g_malloc(0) == NULL);
-  g_assert_cmpstr(u_string_builder_build(sb), ==, "");
-  g_assert(u_string_builder_build(sb)[0] == '\0');
+  str = u_string_builder_build(sb);
+  g_assert_cmpstr(str, ==, "");
+  g_assert(str[0] == '\0');
   g_object_unref(sb);
+  g_free(str);
 
   // nulls do nothing
   sb = u_string_builder_new();
   u_string_builder_append(sb,NULL);
   u_string_builder_append_n(sb,NULL,10);
-  g_assert_cmpstr(u_string_builder_build(sb), ==, "");
+  str = u_string_builder_build(sb);
+  g_assert_cmpstr(str, ==, "");
+  g_object_unref(sb);
+  g_free(str);
+
+  // empty strings so nothing
+  sb = u_string_builder_new();
+  u_string_builder_append(sb,"");
+  u_string_builder_append(sb,"");
+  u_string_builder_append(sb,"");
+  g_assert(u_string_builder_length(sb) == 0);
+  str = u_string_builder_build(sb);
+  g_assert_cmpstr(str,==,"");
+  g_object_unref(sb);
+  g_free(str);
 
   // null terminatation
   sb = u_string_builder_new();
   u_string_builder_append(sb,"word");
-  const gchar* str = u_string_builder_build(sb);
+  str = u_string_builder_build(sb);
   printf("%s\n", str);
   g_assert(str[4] == '\0');
   g_object_unref(sb);
+  g_free(str);
 
   return 0;
 }

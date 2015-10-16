@@ -19,8 +19,8 @@ G_DECLARE_FINAL_TYPE (UStringBuilder, u_string_builder, U, STRING_BUILDER, GObje
  * Convenience Macros
  */
 #define U_TYPE_STRING_BUILDER                               (u_string_builder_get_type ())
-#define U_STRING_BUILDER(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
-                                                                U_TYPE_STRING_BUILDER, UStringBuilder))
+// #define U_STRING_BUILDER(inst)                              (G_TYPE_CHECK_INSTANCE_CAST ((inst),                     \
+//                                                                 U_TYPE_STRING_BUILDER, UStringBuilder))
 /*
  * Method definitions.
  */
@@ -36,7 +36,7 @@ void u_string_builder_prepend (UStringBuilder *self, const gchar* str);
 
 gint u_string_builder_length (UStringBuilder *self);
 
-const gchar* u_string_builder_build (UStringBuilder *self);
+gchar* u_string_builder_build (UStringBuilder *self);
 
 G_END_DECLS
 
