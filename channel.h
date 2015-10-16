@@ -7,6 +7,8 @@
 #define __Y_CHANNEL_H__
 
 #include <glib-object.h>
+#include "video.h"
+
 /*
  * Potentially, include other headers on which this header depends.
  */
@@ -32,7 +34,7 @@ void y_channel_open (YChannel *self, const char* channel_id);
 
 void y_channel_open_by_user (YChannel *self, const char* user_id);
 
-//RYoutubeVideo *y_channel_uploads (RYoutube *self);
+gint y_channel_uploads (YChannel *self, gint page_number, gint page_size, YVideo** videos);
 
 //RYoutubeVideo *y_channel_likes (RYoutube *self);
 

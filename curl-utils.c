@@ -12,8 +12,8 @@ static size_t curl_write_data(void *buffer,
 }
 
 /* Wrapper for simple curl get request */
-const char* u_curl_simple_get(const char* url,
-                              CURLcode* code) {
+gchar* u_curl_simple_get(const gchar* url,
+                               CURLcode* code) {
   CURL *curl = curl_easy_init();
   CURLcode _code;
   UStringBuilder* response_chunked = u_string_builder_new();
@@ -25,7 +25,7 @@ const char* u_curl_simple_get(const char* url,
     *code = _code;
   }
   curl_easy_cleanup(curl);
-  const gchar* response = u_string_builder_build(response_chunked);
+  gchar* response = u_string_builder_build(response_chunked);
   g_object_unref(response_chunked);
   return response;
 }

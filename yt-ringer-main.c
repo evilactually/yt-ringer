@@ -4,7 +4,9 @@
 #include <curl/curl.h>
 #include <stdio.h>
 
-#include "maman-bar.h"
+//#include "channel.h"
+
+char* buffer[512];
 
 size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp) {
   printf("%s\n", buffer);
@@ -17,11 +19,28 @@ activate (GApplication *app,
   CURL *curl = curl_easy_init();
   if(curl) {
     CURLcode res;
-    curl_easy_setopt(curl, CURLOPT_URL, "https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forUsername=exvsk&key=AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g");
+    curl_easy_setopt(curl, CURLOPT_URL, "www.google.com");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+    gchar msg[512];
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER , msg);
+    printf("%s\n", msg);
     res = curl_easy_perform(curl);
+    printf("%s\n", "****************************");
+    printf("%d\n", res);
     curl_easy_cleanup(curl);
   }
+  //
+  // Youtube
+  //
+  // assert
+  // open
+  //
+  // statistics
+  // uploads
+  // likes -> videos
+  // playlists -> videos
+
+//  get_uploads_playlist(channel_name);
 
   // most app logic is here
   /* keep a loop

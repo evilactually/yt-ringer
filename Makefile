@@ -18,7 +18,13 @@ preprocess:
 	gcc -E ${CFLAGS} channel.c > preprocessed.c
 
 tests:
-		gcc -D"CHANNEL_TESTS" ${CFLAGS} channel.c string-builder.c curl-utils.c -o channel-test ${LIBS}
-		gcc -D"STRING_BUILDER_TESTS" ${CFLAGS} string-builder.c string-utils.c -o string-builder-test ${LIBS}
-		gcc -D"CURL_UTILS_TESTS" ${CFLAGS} curl-utils.c string-utils.c string-builder.c -o curl-utils-test ${LIBS}
-		gcc -D"STRING_UTILS_TESTS" ${CFLAGS} string-utils.c string-builder.c -o string-utils-test ${LIBS}
+		# gcc -D"CHANNEL_TESTS" ${CFLAGS} channel.c string-builder.c string-utils.c curl-utils.c -o channel-test ${LIBS}
+		# ./channel-test
+		# gcc -D"STRING_BUILDER_TESTS" ${CFLAGS} string-builder.c string-utils.c -o string-builder-test ${LIBS}
+		# ./string-builder-test
+		# gcc -D"CURL_UTILS_TESTS" ${CFLAGS} curl-utils.c string-utils.c string-builder.c -o curl-utils-test ${LIBS}
+		# ./curl-utils-test
+		# gcc -D"STRING_UTILS_TESTS" ${CFLAGS} string-utils.c string-builder.c -o string-utils-test ${LIBS}
+		# ./string-utils-test
+		gcc -D"JSON_QUERY_TESTS" ${CFLAGS} json-query.c -o json-query-tests ${LIBS}
+		./json-query-tests

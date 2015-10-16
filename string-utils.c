@@ -12,40 +12,40 @@ gint u_str_match(const gchar* str1, const gchar* str2) {
 /* Helper data structure for string construction in u_str_substitute_vars function */
 
 struct string_build_buffers {
-  UStringBuilder *finished_buffers;
+  UStringBuilder* finished_buffers;
   const gchar*    current_buffer;
   gsize           current_buffer_size;
 };
 
 typedef struct string_build_buffers string_build_buffers;
 
-void init_build_buffers(string_build_buffers *b) {
+void init_build_buffers(string_build_buffers* b) {
   b->finished_buffers = u_string_builder_new();
   b->current_buffer = NULL;
   b->current_buffer_size = 0;
 }
 
-void dispose_build_buffers(string_build_buffers *b) {
+void dispose_build_buffers(string_build_buffers* b) {
   g_object_unref(b->finished_buffers);
 }
 
-void buffer_start(string_build_buffers *b, const gchar* str) {
+void buffer_start(string_build_buffers* b, const gchar* str) {
   g_assert(b->current_buffer == NULL); // make sure no one starts a result_buffers twice
   b->current_buffer_size = 0;          // (without getting yelled at)
   b->current_buffer = str;
 }
 
-void buffer_advance(string_build_buffers *b) {
+void buffer_advance(string_build_buffers* b) {
   g_assert(b->current_buffer);
   b->current_buffer_size++;
 }
 
-void buffer_advance_n(string_build_buffers *b, gint n) {
+void buffer_advance_n(string_build_buffers* b, gint n) {
   g_assert(b->current_buffer);
   b->current_buffer_size += n;
 }
 
-void buffer_advance_untill_null(string_build_buffers *b) {
+void buffer_advance_untill_null(string_build_buffers* b) {
   g_assert(b->current_buffer);
   const gchar* c = b->current_buffer;
   while (*c++) { b->current_buffer_size++; }
@@ -58,7 +58,7 @@ void buffer_finish(string_build_buffers *b) {
   b->current_buffer_size = 0;
 }
 
-const gchar* merge_build_buffers(string_build_buffers *b) {
+gchar* merge_build_buffers(string_build_buffers *b) {
   return u_string_builder_build(b->finished_buffers);
 }
 
@@ -79,7 +79,7 @@ enum SCANNER_STATES {
   ERROR_UNEXPECTED_END
 };
 
-const gchar* format_scanning_error_location(const gchar* template, gsize position) {
+gchar* format_scanning_error_location(const gchar* template, gsize position) {
   UStringBuilder *builder = u_string_builder_new();
   u_string_builder_append(builder, template);
   u_string_builder_append(builder, "\n");
@@ -87,12 +87,12 @@ const gchar* format_scanning_error_location(const gchar* template, gsize positio
   u_string_builder_append(builder, space_fill);
   g_free(space_fill);
   u_string_builder_append(builder, "^");
-  const gchar* result = u_string_builder_build(builder);
+  gchar* result = u_string_builder_build(builder);
   g_object_unref(builder);
   return result;
 }
 
-const gchar* u_str_substitute_vars(const gchar* template, ...) {
+gchar* u_str_substitute_vars(const gchar* template, ...) {
 
   /* Populate bindings hash */
   GHashTable* bindings = g_hash_table_new(g_str_hash, g_str_equal);
@@ -208,15 +208,20 @@ const gchar* u_str_substitute_vars(const gchar* template, ...) {
   if(state == OPEN_CURL_OR_STRING) buffer_advance(&result_buffers);
 
   if(state >= ERROR) {
+    g_object_unref(bindings);
+    g_hash_table_unref(bindings);
     dispose_build_buffers(&result_buffers);
-    fprintf(stderr, "%s\n", format_scanning_error_location(template, template_cursor - template));
+    gchar* error_location = format_scanning_error_location(template, template_cursor - template);
+    fprintf(stderr, "%s\n", error_location);
+    g_free(error_location);
     g_assert(state != ERROR_VARIABLE_TOO_LONG);
     g_assert(state != ERROR_UNEXPECTED_INPUT);
     g_assert(state != ERROR_UNEXPECTED_END);
     g_assert(state < ERROR);
   } else {
     buffer_finish(&result_buffers);
-    const gchar* result = merge_build_buffers(&result_buffers);
+    gchar* result = merge_build_buffers(&result_buffers);
+    g_hash_table_unref(bindings);
     dispose_build_buffers(&result_buffers);
     return result;
   }
@@ -250,7 +255,7 @@ int main(int argc, char const *argv[]) {
 
   dispose_build_buffers(&b);
 
-  g_assert(u_str_substitute_vars("", "B", "brillig", "T", "toves", NULL)[1] == '\0');
+  g_assert(u_str_substitute_vars("", "B", "brillig", "T", "toves", NULL)[0] == '\0');
   g_assert(u_str_substitute_vars(" ", "B", "brillig", "T", "toves", NULL)[2] == '\0');
   g_assert_cmpstr(u_str_substitute_vars(" ", "B", "brillig", "T", "toves", NULL), ==, " ");
   g_assert_cmpstr(u_str_substitute_vars("${B}", "B", "brillig", NULL), ==, "brillig");

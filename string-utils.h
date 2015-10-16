@@ -5,6 +5,6 @@
 
 gint u_str_match(const gchar* str1, const gchar* str2);
 
-const gchar* u_str_substitute_vars(const gchar* template, ...);
+gchar* u_str_substitute_vars(const gchar* template, ...);
 
 #endif
