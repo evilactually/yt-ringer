@@ -1,0 +1,22 @@
+{
+ "kind": "youtube#channelListResponse",
+ "etag": "\"fpJ9onbY0Rl_LqYLG6rOCJ9h9N8/wE07sUQUpa6hTGJiqbIqkPm51kE\"",
+ "pageInfo": {
+  "totalResults": 1,
+  "resultsPerPage": 5
+ },
+ "je_suis_null" : null,
+ "items": [
+  {
+   "kind": "youtube#channel",
+   "etag": "\"fpJ9onbY0Rl_LqYLG6rOCJ9h9N8/20C3nG6jFwXXHaTL9LLiH9YEdSs\"",
+   "id": "UCtZP0L7yoEycj6w-f7uVNaA",
+   "contentDetails": {
+    "relatedPlaylists": {
+     "uploads": "UUtZP0L7yoEycj6w-f7uVNaA"
+    },
+    "googlePlusUserId": "101321203102018934281"
+   }
+  }
+ ]
+}
