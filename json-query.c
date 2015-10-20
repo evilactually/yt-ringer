@@ -1,5 +1,6 @@
 
 #include "json-query.h"
+#include <stdio.h>
 
 typedef enum ACTION ACTION;
 typedef enum ACTION_TYPE ACTION_TYPE;
@@ -7,9 +8,9 @@ typedef struct Action Action;
 typedef struct QueryResult QueryResult;
 
 enum ACTION {
-  ACTION_ROOT,
-  ACTION_MEMBER,
-  ACTION_ELEMENT
+  ACTION_ROOT,    // $
+  ACTION_MEMBER,  // .x
+  ACTION_ELEMENT  // [x]
 };
 
 enum ACTION_TYPE {
@@ -155,12 +156,54 @@ QueryResult json_query_interpret(JsonNode* root, GList* actions) {
   return result;
 }
 
+enum {
+  EXPECT_ACTION,
+  EXPECT_INDEX,
+  EXPECT_MEMBER,
+  READING_INDEX,
+  READING_MEMBER,
+  EXPECT_CLOSING_BRACKET,
+  ERROR
+};
+
 GList* json_query_parse(const gchar* query) {
-  //TODO: write a kick-ass parser
+  const gchar* query_cursor = query;
+  gint state = EXPECT_ACTION;
+  GList* actions = NULL;
+
+  while(*query_cursor && state < ERROR) {
+    printf("%c ", *query_cursor);
+    switch (state) {
+      case EXPECT_ACTION:
+        if (*query_cursor == '$') {
+          g_list_prepend(actions, new_root_action(-1));
+          state = EXPECT_ACTION;
+          query_cursor++;
+        } else if (*query_cursor == '.') {
+          query_cursor++;
+          state = EXPECT_MEMBER;
+        } else if (*query_cursor == '[') {
+          query_cursor++;
+          state = EXPECT_INDEX;
+        } else if (*query_cursor == ' ') {
+          query_cursor++;
+        } else {
+          printf("%s\n", "ERROR");
+          state = ERROR;
+        }
+        printf("%s\n", "EXPECT_SIGIL");
+
+        break;
+    }
+  }
+}
+
+void json_query_resolve_types(GList* actions) {
+  //
 }
 
 #ifdef JSON_QUERY_TESTS
-#include <stdio.h>
+
 
 int main(int argc, char const *argv[]) {
   Action* a_0 = new_root_action(ACTION_TYPE_OBJECT);
@@ -219,7 +262,7 @@ int main(int argc, char const *argv[]) {
   g_free(a_0);
   g_free(a_1);
 
-
+  json_query_parse("$.items");
 //  Action* a_4 = new_member_action(ACTION_TYPE_STRING, "wrong");
 //  r = json_query_interpret(root, actions);
 
