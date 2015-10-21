@@ -222,19 +222,81 @@ GList* json_query_parse(const gchar* query) {
         } else {
           state = ERROR;
         }
-
         printf("%s\n", "READING_INDEX");
         break;
+      case EXPECT_CLOSING_BRACKET:
+        if (*query_cursor == ' ') {
+          query_cursor++;
+        } else if (*query_cursor == ']') {
+          state = *query_cursor == EXPECT_ACTION;
+          query_cursor++;
+        } else {
+          state = ERROR;
+        }
+        printf("%s\n", "EXPECT_CLOSING_BRACKET");
+        break;
+      case EXPECT_MEMBER:
+        if (*query_cursor == ' ') {
+          query_cursor++;
+        } else if (g_ascii_isalnum (*query_cursor)) {
+          state = READING_MEMBER;
+          buffer_cursor = buffer;
+        } else {
+          state = ERROR;
+        }
+        printf("%s\n", "EXPECT_MEMBER");
+        break;
+      case READING_MEMBER: {
+        gboolean commit_action = FALSE;
+        if (g_ascii_isalnum (*query_cursor)) {
+          *buffer_cursor = *query_cursor;
+          buffer_cursor++; // TODO: overflow check
+          query_cursor++;
+          if(*query_cursor == '\0') commit_action = TRUE; // look ahead
+        } else if (*query_cursor == ' ' ||
+                   *query_cursor == '.' ||
+                   *query_cursor == '[') {
+          commit_action = TRUE;
+          state = EXPECT_ACTION;
+        } else {
+          state = ERROR;
+        }
+        if (commit_action) {
+          *buffer_cursor = '\0';
+          actions = g_list_prepend(actions, new_member_action(-1,g_strdup(buffer)));
+        }
+        printf("%s\n", "READING_MEMBER");
+        break;
+      }
     }
   }
+  return g_list_reverse(actions);
 }
 
-void json_query_resolve_types(GList* actions) {
-  //
+void json_query_resolve_types(GList* actions, ACTION_TYPE result_type) {
+  Action *previous, *current = NULL, *first;
+  first = actions->data;
+  g_assert(first->action == ACTION_ROOT);
+  do {
+    previous = current;
+    current = actions->data;
+    // (current == ACTION_ROOT) => (previous == NULL)
+    g_assert(!(current->action == ACTION_ROOT) || (previous == NULL));
+    if (previous) {
+      switch (current->action) {
+        case ACTION_ELEMENT:
+          previous->type = ACTION_TYPE_ARRAY;
+          break;
+        case ACTION_MEMBER:
+          previous->type = ACTION_TYPE_OBJECT;
+          break;
+      }
+    }
+  } while (actions = actions->next);
+  current->type = result_type;
 }
 
 #ifdef JSON_QUERY_TESTS
-
 
 int main(int argc, char const *argv[]) {
   Action* a_0 = new_root_action(ACTION_TYPE_OBJECT);
@@ -293,8 +355,33 @@ int main(int argc, char const *argv[]) {
   g_free(a_0);
   g_free(a_1);
 
-  //json_query_parse("$.items");
-  json_query_parse("$[1]");
+  parser = json_parser_new();
+  json_parser_load_from_file(parser, "json-query-test-02.json", NULL);
+  GList* a = json_query_parse("$.items[0].id");
+  json_query_resolve_types(a, ACTION_TYPE_STRING);
+  r = json_query_interpret(json_parser_get_root(parser), a);
+  printf("%s\n", r.value.as_string);
+
+
+  //GList* a = json_query_parse("$[1]$.items[0].items");
+  //GList* a = json_query_parse("$[1].id");
+  //printf("l:%d\n", g_list_length(a));
+  // root array
+  // element object
+  // member array
+  // element object
+  // member string
+
+  // element -> array
+  // member -> object
+  // return result can be any type
+
+  //json_query_resolve_types(a, ACTION_TYPE_STRING);
+
+  // do {
+  //   printf("%d\n", ((Action*)(a->data))->action);
+  // } while (a = a->next);
+
 //  Action* a_4 = new_member_action(ACTION_TYPE_STRING, "wrong");
 //  r = json_query_interpret(root, actions);
 
