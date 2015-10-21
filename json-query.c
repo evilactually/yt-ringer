@@ -166,33 +166,64 @@ enum {
   ERROR
 };
 
+#define BUFFER_SIZE 16
+
 GList* json_query_parse(const gchar* query) {
   const gchar* query_cursor = query;
   gint state = EXPECT_ACTION;
   GList* actions = NULL;
+  gchar buffer[BUFFER_SIZE];
+  gchar* buffer_cursor;
 
   while(*query_cursor && state < ERROR) {
     printf("%c ", *query_cursor);
     switch (state) {
       case EXPECT_ACTION:
         if (*query_cursor == '$') {
-          g_list_prepend(actions, new_root_action(-1));
-          state = EXPECT_ACTION;
+          actions = g_list_prepend(actions, new_root_action(-1));
           query_cursor++;
         } else if (*query_cursor == '.') {
-          query_cursor++;
           state = EXPECT_MEMBER;
-        } else if (*query_cursor == '[') {
           query_cursor++;
+        } else if (*query_cursor == '[') {
           state = EXPECT_INDEX;
+          query_cursor++;
         } else if (*query_cursor == ' ') {
           query_cursor++;
         } else {
           printf("%s\n", "ERROR");
           state = ERROR;
         }
-        printf("%s\n", "EXPECT_SIGIL");
+        printf("%s\n", "EXPECT_ACTION");
+        break;
+      case EXPECT_INDEX:
+        if (*query_cursor == ' ') {
+          query_cursor++;
+        } else if (g_ascii_isdigit (*query_cursor)) {
+          state = READING_INDEX;
+          buffer_cursor = buffer;
+        } else {
+          state = ERROR;
+        }
+        printf("%s\n", "EXPECT_INDEX");
+        break;
+      case READING_INDEX:
+        if (g_ascii_isdigit (*query_cursor)) {
+          *buffer_cursor = *query_cursor;
+          buffer_cursor++;
+          query_cursor++;
+        } else if (*query_cursor == ' ' || *query_cursor == ']') {
+          *buffer_cursor = '\0';
+          int i;
+          sscanf(buffer, "%d\n", &i);
+          actions = g_list_prepend(actions, new_element_action(-1,i));
+          state = *query_cursor == ' ' ? EXPECT_CLOSING_BRACKET : EXPECT_ACTION;
+          query_cursor++;
+        } else {
+          state = ERROR;
+        }
 
+        printf("%s\n", "READING_INDEX");
         break;
     }
   }
@@ -262,7 +293,8 @@ int main(int argc, char const *argv[]) {
   g_free(a_0);
   g_free(a_1);
 
-  json_query_parse("$.items");
+  //json_query_parse("$.items");
+  json_query_parse("$[1]");
 //  Action* a_4 = new_member_action(ACTION_TYPE_STRING, "wrong");
 //  r = json_query_interpret(root, actions);
 
