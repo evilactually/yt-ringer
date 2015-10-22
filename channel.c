@@ -2,6 +2,7 @@
 #include "channel.h"
 #include "curl-utils.h"
 #include "string-utils.h"
+#include "json-query.h"
 #include "request-builders.h"
 #include <json-glib/json-glib.h>
 #include <string.h>
@@ -9,7 +10,9 @@
 struct _YChannel
 {
   GObject parent_instance;
+
   /* Private */
+
   gchar* api_key;
   gchar* channel_id;
   int cache_valid;
@@ -55,18 +58,13 @@ void y_channel_open_by_user (YChannel *self,
   CURLcode code;
   gchar* request_string = yt_channel_basic_info_request_by_user(self->api_key, user_id);
   gchar* response = u_curl_simple_get(request_string, &code);
-  printf("%s\n", response);
   JsonParser* parser = json_parser_new();
   GError* error;
   json_parser_load_from_data (parser,
                               response,
                               strlen(response),
                               &error);
-  JsonNode* root = json_parser_get_root(parser);
-  JsonObject* root_object = json_node_get_object(root);
-  JsonArray* items = json_object_get_array_member(root_object, "items");
-  JsonObject* first = json_array_get_object_element(items, 0);
-  g_strdup(json_object_get_string_member(first, "id"));
+  self->channel_id = g_strdup(json_query_string(json_parser_get_root(parser), "$.items[0].id"));
   g_object_unref(parser);
   g_free(request_string);
   g_free(response);
@@ -75,9 +73,7 @@ void y_channel_open_by_user (YChannel *self,
 gint y_channel_uploads (YChannel *self, gint page_number, gint page_size, YVideo** videos) {
   CURLcode code;
   gchar* request_string = yt_channel_basic_info_request_by_id(self->api_key, self->channel_id);
-  printf("%s\n", request_string);
   gchar* response = u_curl_simple_get(request_string, &code);
-  printf("%s\n", response);
   JsonParser* parser = json_parser_new();
   GError* error;
   json_parser_load_from_data (parser,
@@ -88,7 +84,7 @@ gint y_channel_uploads (YChannel *self, gint page_number, gint page_size, YVideo
   JsonObject* root_object = json_node_get_object(root);
   JsonArray* items = json_object_get_array_member(root_object, "items");
   JsonObject* premier = json_array_get_object_element(items, 0);
-  printf("%s\n", json_object_get_object_member(premier, "contentDetails"));
+  //printf("%s\n", json_object_get_object_member(premier, "contentDetails"));
   g_object_unref(parser);
   g_free(request_string);
   g_free(response);
@@ -103,7 +99,7 @@ int main(int argc, char const *argv[]) {
   y_channel_authenticate(channel, "AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g");
   g_assert(u_str_match(channel->api_key, "AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g"));
   y_channel_open_by_user(channel, "exvsk");
-  y_channel_uploads(channel, 1, 5, NULL);
+  //y_channel_uploads(channel, 1, 5, NULL);
 
   g_object_unref(channel);
 
