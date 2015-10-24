@@ -176,7 +176,7 @@ GList* json_query_parse(const gchar* query) {
   gchar* buffer_cursor;
 
   while(*query_cursor && state < ERROR) {
-    printf("%c ", *query_cursor);
+    //printf("%c ", *query_cursor);
     switch (state) {
       case EXPECT_ACTION:
         if (*query_cursor == '$') {
@@ -191,10 +191,10 @@ GList* json_query_parse(const gchar* query) {
         } else if (*query_cursor == ' ') {
           query_cursor++;
         } else {
-          printf("%s\n", "ERROR");
+          //printf("%s\n", "ERROR");
           state = ERROR;
         }
-        printf("%s\n", "EXPECT_ACTION");
+        //printf("%s\n", "EXPECT_ACTION");
         break;
       case EXPECT_INDEX:
         if (*query_cursor == ' ') {
@@ -205,7 +205,7 @@ GList* json_query_parse(const gchar* query) {
         } else {
           state = ERROR;
         }
-        printf("%s\n", "EXPECT_INDEX");
+        //printf("%s\n", "EXPECT_INDEX");
         break;
       case READING_INDEX:
         if (g_ascii_isdigit (*query_cursor)) {
@@ -222,7 +222,7 @@ GList* json_query_parse(const gchar* query) {
         } else {
           state = ERROR;
         }
-        printf("%s\n", "READING_INDEX");
+        //printf("%s\n", "READING_INDEX");
         break;
       case EXPECT_CLOSING_BRACKET:
         if (*query_cursor == ' ') {
@@ -233,7 +233,7 @@ GList* json_query_parse(const gchar* query) {
         } else {
           state = ERROR;
         }
-        printf("%s\n", "EXPECT_CLOSING_BRACKET");
+        //printf("%s\n", "EXPECT_CLOSING_BRACKET");
         break;
       case EXPECT_MEMBER:
         if (*query_cursor == ' ') {
@@ -244,7 +244,7 @@ GList* json_query_parse(const gchar* query) {
         } else {
           state = ERROR;
         }
-        printf("%s\n", "EXPECT_MEMBER");
+        //printf("%s\n", "EXPECT_MEMBER");
         break;
       case READING_MEMBER: {
         gboolean commit_action = FALSE;
@@ -265,7 +265,7 @@ GList* json_query_parse(const gchar* query) {
           *buffer_cursor = '\0';
           actions = g_list_prepend(actions, new_member_action(-1,g_strdup(buffer)));
         }
-        printf("%s\n", "READING_MEMBER");
+        //printf("%s\n", "READING_MEMBER");
         break;
       }
     }
@@ -294,6 +294,74 @@ void json_query_resolve_types(GList* actions, ACTION_TYPE result_type) {
     }
   } while (actions = actions->next);
   current->type = result_type;
+}
+
+void json_query_free_actions(GList* actions){
+  GList* cursor = actions;
+  do {
+    Action* action = cursor->data;
+    if (action->action == ACTION_MEMBER) {
+      g_free((gpointer)action->argument.member);
+    }
+    g_free(action);
+  } while (cursor = cursor->next);
+  g_list_free(actions);
+}
+
+const gchar* json_query_string(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_STRING);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_string;
+}
+
+gint json_query_int(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_INT);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_int;
+}
+
+gboolean json_query_boolean(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_BOOLEAN);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_boolean;
+}
+
+gdouble json_query_double(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_DOUBLE);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_double;
+}
+
+JsonArray* json_query_array(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_ARRAY);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_array;
+}
+
+JsonObject* json_query_object(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_OBJECT);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_object;
+}
+
+gboolean json_query_null(JsonNode* root, const gchar* query) {
+  GList* actions = json_query_parse(query);
+  json_query_resolve_types(actions, ACTION_TYPE_NULL);
+  QueryResult result = json_query_interpret(root, actions);
+  json_query_free_actions(actions);
+  return result.value.as_null;
 }
 
 #ifdef JSON_QUERY_TESTS
@@ -357,11 +425,18 @@ int main(int argc, char const *argv[]) {
 
   parser = json_parser_new();
   json_parser_load_from_file(parser, "json-query-test-02.json", NULL);
-  GList* a = json_query_parse("$.items[0].id");
-  json_query_resolve_types(a, ACTION_TYPE_STRING);
-  r = json_query_interpret(json_parser_get_root(parser), a);
-  printf("%s\n", r.value.as_string);
+  root = json_parser_get_root(parser);
+  // GList* a = json_query_parse("$.items[0].id");
+  // json_query_resolve_types(a, ACTION_TYPE_STRING);
+  // r = json_query_interpret(json_parser_get_root(parser), a);
+  // printf("%s\n", r.value.as_string);
 
+  printf("%s\n", json_query_string(root, "$.etag"));
+  //printf("%s\n", json_query_string(root, "$.items[0].id"));
+  // printf("%s\n", json_query_string(root, "$.items[0].contentDetails.relatedPlaylists.uploads"));
+  // printf("%s\n", json_query_string(root, "$.etag"));
+
+  g_object_unref(parser);
 
   //GList* a = json_query_parse("$[1]$.items[0].items");
   //GList* a = json_query_parse("$[1].id");
