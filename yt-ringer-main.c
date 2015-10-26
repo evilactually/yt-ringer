@@ -43,13 +43,24 @@ JsonArray* playlist_get_videos (const gchar* api_key, const gchar* playlist_id, 
   return array;
 }
 
+void process_json_video (JsonArray *array,
+                         guint index_,
+                         JsonNode *element_node,
+                         gpointer user_data) {
+  printf("%s\n", json_query_string(element_node, "$.snippet.title"));
+  // get last 5 videos
+  // filter by date threshold - to prevent notifications from old videos
+  // filter by ids, loaded from file - to prevent re-notifications on restart
+}
+
 void activate (GApplication *app,
                gpointer      user_data)
 {
   GError* error;
   gchar* uploads_id = channel_get_uploads_playlist_id("exvsk", "AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g", &error);
   JsonArray* a = playlist_get_videos("AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g", uploads_id, &error);
-  printf("%d\n", json_array_get_length(a));
+  //printf("%d\n", json_array_get_length(a));
+  json_array_foreach_element(a, process_json_video, NULL);
   json_array_unref(a);
   g_free(uploads_id);
 
