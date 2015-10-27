@@ -9,6 +9,12 @@
 #include "curl-utils.h"
 #include <string.h>
 
+
+
+/*
+  new ids >>>>
+*/
+
 gchar* channel_get_uploads_playlist_id (const gchar* user_id, const gchar* api_key, GError** error) {
   CURLcode code;
   gchar* request_string = yt_channel_basic_info_request_by_user(api_key, user_id);
@@ -48,9 +54,23 @@ void process_json_video (JsonArray *array,
                          JsonNode *element_node,
                          gpointer user_data) {
   printf("%s\n", json_query_string(element_node, "$.snippet.title"));
-  // get last 5 videos
-  // filter by date threshold - to prevent notifications from old videos
-  // filter by ids, loaded from file - to prevent re-notifications on restart
+
+  /* Notification spawning */
+  GApplication* app = (GApplication*)user_data;
+  GNotification *notification;
+  GFile *file;
+  GIcon *icon;
+  notification = g_notification_new ("ExVSK");
+  sleep(3);
+  g_notification_set_body (notification, json_query_string(element_node, "$.snippet.title"));
+  file = g_file_new_for_path ("./photo.jpg");
+  icon = g_file_icon_new (file);
+  g_notification_set_icon (notification, G_ICON (icon));
+  g_object_unref (icon);
+  g_object_unref (file);
+
+  g_application_send_notification (app, json_query_string(element_node, "$.id"), notification);
+  g_object_unref (notification);
 }
 
 void activate (GApplication *app,
@@ -60,7 +80,7 @@ void activate (GApplication *app,
   gchar* uploads_id = channel_get_uploads_playlist_id("exvsk", "AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g", &error);
   JsonArray* a = playlist_get_videos("AIzaSyC6OAlPAuIa2YDC_w3xRrDMIX_M1fGF41g", uploads_id, &error);
   //printf("%d\n", json_array_get_length(a));
-  json_array_foreach_element(a, process_json_video, NULL);
+  json_array_foreach_element(a, process_json_video, app);
   json_array_unref(a);
   g_free(uploads_id);
 
